@@ -1,0 +1,19 @@
+We need a way to describe requests to feed through Turnstile for the
+benchmarking.  In the WSGI architecture, requests get turned into
+simple environment dictionaries and a start_response call.  Since the
+start_response call will come from the train architecture itself, we
+only need the dictionaries.  One obvious way of representing the
+request, then, is to simply use a JSON-serialized dictionary.  If we
+go that way, though, we'll need a tool to help generate them.  An
+alternative is a simpler dictionary containing the URI and headers,
+and allow the train reader to synthesize the rest of the WSGI
+environment.
+
+One other requirement for the request descriptions is some means of
+specifying time sequence of the requests; we want to be able to say
+that one request must occur at some particular point in time.  (How we
+implement this sequencing in train is also up for discussion; one
+possibility is to simply fiddle with time.time(), but train is
+multithreaded, which makes that more difficult; that means we'll need
+a sequence generator to push requests into the request queue that is
+used to feed train.)
