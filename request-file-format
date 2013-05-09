@@ -17,3 +17,24 @@ possibility is to simply fiddle with time.time(), but train is
 multithreaded, which makes that more difficult; that means we'll need
 a sequence generator to push requests into the request queue that is
 used to feed train.)
+
+After thinking about this, I've come up with the idea of a
+custom-parsed file consisting of independent sequences of requests.
+I'll use '#' as the comment character, and an example of the file
+follows:
+
+[sequence_name]		# Each sequence has a unique name
+x-header: header value	# These are optional, and apply to all
+			# requests in the sequence.  They can be
+			# overridden.
+
++2.5			# Indicates a time gap included between
+			# requests; in this case, 2.5 seconds.
+
+GET /uri/path?q=value	# Introduces a request.  Note that the request
+			# method is followed by a space; this is what
+			# differentiates it from headers
+
+x-header2: header value	# These are optional, and apply only to the
+			# preceding request; they can override
+			# defaults specified for the sequence
