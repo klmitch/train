@@ -17,6 +17,7 @@ import mock
 import unittest2
 
 from train import request
+from train import util
 
 
 class TestSequence(unittest2.TestCase):
@@ -25,39 +26,9 @@ class TestSequence(unittest2.TestCase):
         seq = request.Sequence('test_seq', headers)
 
         self.assertEqual(seq.name, 'test_seq')
+        self.assertIsInstance(seq.headers, util.StackedDict)
         self.assertEqual(seq.headers, dict(a=1, b=2, c=3))
         self.assertEqual(seq.requests, [])
-
-        # Verify header independence
-        headers['d'] = 4
-        self.assertEqual(seq.headers, dict(a=1, b=2, c=3))
-
-    def test_getitem(self):
-        headers = dict(a=1, b=2, c=3)
-        seq = request.Sequence('test_seq', headers)
-
-        self.assertEqual(seq['a'], 1)
-        with self.assertRaises(KeyError):
-            dummy = seq['d']
-
-    def test_setitem(self):
-        headers = dict(a=1, b=2, c=3)
-        seq = request.Sequence('test_seq', headers)
-
-        seq['a'] = 5
-        seq['d'] = 6
-
-        self.assertEqual(seq.headers, dict(a=5, b=2, c=3, d=6))
-
-    def test_delitem(self):
-        headers = dict(a=1, b=2, c=3)
-        seq = request.Sequence('test_seq', headers)
-
-        del seq['a']
-        self.assertEqual(seq.headers, dict(b=2, c=3))
-
-        with self.assertRaises(KeyError):
-            del seq['d']
 
     def test_push(self):
         seq = request.Sequence('test_seq', {})
@@ -76,38 +47,20 @@ class TestRequest(unittest2.TestCase):
 
         self.assertEqual(req.method, 'GET')
         self.assertEqual(req.uri, 'uri')
+        self.assertIsInstance(req.headers, util.StackedDict)
         self.assertEqual(req.headers, dict(a=1, b=2, c=3))
 
-        # Verify header independence
-        headers['d'] = 4
-        self.assertEqual(req.headers, dict(a=1, b=2, c=3))
-
-    def test_getitem(self):
+    def test_fix(self):
         headers = dict(a=1, b=2, c=3)
         req = request.Request(mock.Mock(headers=headers), 'get', 'uri')
+        req.headers['d'] = 4
 
-        self.assertEqual(req['a'], 1)
-        with self.assertRaises(KeyError):
-            dummy = req['d']
+        req.fix()
 
-    def test_setitem(self):
-        headers = dict(a=1, b=2, c=3)
-        req = request.Request(mock.Mock(headers=headers), 'get', 'uri')
+        headers['e'] = 5
 
-        req['a'] = 5
-        req['d'] = 6
-
-        self.assertEqual(req.headers, dict(a=5, b=2, c=3, d=6))
-
-    def test_delitem(self):
-        headers = dict(a=1, b=2, c=3)
-        req = request.Request(mock.Mock(headers=headers), 'get', 'uri')
-
-        del req['a']
-        self.assertEqual(req.headers, dict(b=2, c=3))
-
-        with self.assertRaises(KeyError):
-            del req['d']
+        self.assertIsInstance(req.headers, dict)
+        self.assertEqual(req.headers, dict(a=1, b=2, c=3, d=4))
 
 
 class TestGap(unittest2.TestCase):
@@ -137,32 +90,36 @@ class TestRequestParseState(unittest2.TestCase):
     def test_init(self):
         state = request.RequestParseState()
 
+        self.assertIsInstance(state._headers, util.StackedDict)
         self.assertEqual(state._headers, {})
         self.assertEqual(state._sequences, {})
         self.assertEqual(state._sequence, None)
         self.assertEqual(state._request, None)
         self.assertEqual(state._header, None)
 
+    @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
     @mock.patch.object(request, 'Sequence', return_value='new_seq')
-    def test_start_sequence_to_global(self, mock_Sequence, mock_finish_header):
+    def test_start_sequence_to_global(self, mock_Sequence, mock_finish_header,
+                                      mock_finish_request):
         state = request.RequestParseState()
-        state._request = 'request'
         state._sequence = 'sequence'
         state._sequences['spam'] = 'spam_seq'
 
         state.start_sequence('filename', '')
 
+        self.assertFalse(mock_finish_request.called)
         self.assertFalse(mock_finish_header.called)
         self.assertFalse(mock_Sequence.called)
-        self.assertEqual(state._request, None)
         self.assertEqual(state._sequence, None)
         self.assertEqual(state._sequences, dict(spam='spam_seq'))
 
+    @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
     @mock.patch.object(request, 'Sequence', return_value='new_seq')
-    def test_start_sequence_finish_header(self, mock_Sequence,
-                                          mock_finish_header):
+    def test_start_sequence_finishes(self, mock_Sequence,
+                                     mock_finish_header,
+                                     mock_finish_request):
         state = request.RequestParseState()
         state._header = 'header'
         state._request = 'request'
@@ -171,50 +128,54 @@ class TestRequestParseState(unittest2.TestCase):
 
         state.start_sequence('filename', '')
 
+        mock_finish_request.assert_called_once_with('filename')
         mock_finish_header.assert_called_once_with('filename')
         self.assertFalse(mock_Sequence.called)
-        self.assertEqual(state._request, None)
         self.assertEqual(state._sequence, None)
         self.assertEqual(state._sequences, dict(spam='spam_seq'))
 
+    @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
     @mock.patch.object(request, 'Sequence', return_value='new_seq')
-    def test_start_sequence_existing(self, mock_Sequence, mock_finish_header):
+    def test_start_sequence_existing(self, mock_Sequence, mock_finish_header,
+                                     mock_finish_request):
         state = request.RequestParseState()
-        state._request = 'request'
         state._sequences['spam'] = 'spam_seq'
 
         state.start_sequence('filename', 'spam')
 
+        self.assertFalse(mock_finish_request.called)
         self.assertFalse(mock_finish_header.called)
         self.assertFalse(mock_Sequence.called)
-        self.assertEqual(state._request, None)
         self.assertEqual(state._sequence, 'spam_seq')
         self.assertEqual(state._sequences, dict(spam='spam_seq'))
 
+    @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
     @mock.patch.object(request, 'Sequence', return_value='new_seq')
-    def test_start_sequence_new(self, mock_Sequence, mock_finish_header):
+    def test_start_sequence_new(self, mock_Sequence, mock_finish_header,
+                                mock_finish_request):
         state = request.RequestParseState()
         state._headers = dict(HEADER1='value1', HEADER2='value2')
-        state._request = 'request'
         state._sequences['spam'] = 'spam_seq'
 
         state.start_sequence('filename', 'other')
 
+        self.assertFalse(mock_finish_request.called)
         self.assertFalse(mock_finish_header.called)
         mock_Sequence.assert_called_once_with(
             'other', dict(HEADER1='value1', HEADER2='value2'))
-        self.assertEqual(state._request, None)
         self.assertEqual(state._sequence, 'new_seq')
         self.assertEqual(state._sequences, dict(
             spam='spam_seq',
             other='new_seq',
         ))
 
+    @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
     @mock.patch.object(request, 'Request', return_value='new_req')
-    def test_start_request_bad_state(self, mock_Request, mock_finish_header):
+    def test_start_request_bad_state(self, mock_Request, mock_finish_header,
+                                     mock_finish_request):
         state = request.RequestParseState()
         state._header = 'header'
         state._request = 'request'
@@ -223,27 +184,32 @@ class TestRequestParseState(unittest2.TestCase):
                           'filename', 'get', 'uri')
 
         self.assertEqual(state._request, 'request')
+        self.assertFalse(mock_finish_request.called)
         self.assertFalse(mock_finish_header.called)
         self.assertFalse(mock_Request.called)
 
+    @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
     @mock.patch.object(request, 'Request', return_value='new_req')
-    def test_start_request(self, mock_Request, mock_finish_header):
+    def test_start_request(self, mock_Request, mock_finish_header,
+                           mock_finish_request):
         state = request.RequestParseState()
         state._sequence = mock.Mock()
-        state._request = 'request'
 
         state.start_request('filename', 'get', 'uri')
 
         self.assertEqual(state._request, 'new_req')
+        self.assertFalse(mock_finish_request.called)
         self.assertFalse(mock_finish_header.called)
         mock_Request.assert_called_once_with(state._sequence, 'get', 'uri')
         state._sequence.push.assert_called_once_with('new_req')
 
+    @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
     @mock.patch.object(request, 'Request', return_value='new_req')
-    def test_start_request_finish_header(self, mock_Request,
-                                         mock_finish_header):
+    def test_start_request_finishes(self, mock_Request,
+                                    mock_finish_header,
+                                    mock_finish_request):
         state = request.RequestParseState()
         state._sequence = mock.Mock()
         state._header = 'header'
@@ -252,13 +218,26 @@ class TestRequestParseState(unittest2.TestCase):
         state.start_request('filename', 'get', 'uri')
 
         self.assertEqual(state._request, 'new_req')
+        mock_finish_request.assert_called_once_with('filename')
         mock_finish_header.assert_called_once_with('filename')
         mock_Request.assert_called_once_with(state._sequence, 'get', 'uri')
         state._sequence.push.assert_called_once_with('new_req')
 
+    def test_finish_request(self):
+        req = mock.Mock()
+        state = request.RequestParseState()
+        state._request = req
+
+        state.finish_request('filename')
+
+        req.fix.assert_called_once_with()
+        self.assertEqual(state._request, None)
+
+    @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
     @mock.patch.object(request, 'Gap', return_value='gap')
-    def test_push_gap_bad_state(self, mock_Gap, mock_finish_header):
+    def test_push_gap_bad_state(self, mock_Gap, mock_finish_header,
+                                mock_finish_request):
         state = request.RequestParseState()
         state._header = 'header'
         state._request = 'request'
@@ -266,27 +245,31 @@ class TestRequestParseState(unittest2.TestCase):
         self.assertRaises(request.RequestParseException, state.push_gap,
                           'filename', 12.34)
 
-        self.assertEqual(state._request, 'request')
+        self.assertFalse(mock_finish_request.called)
         self.assertFalse(mock_finish_header.called)
         self.assertFalse(mock_Gap.called)
 
+    @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
     @mock.patch.object(request, 'Gap', return_value='gap')
-    def test_push_gap(self, mock_Gap, mock_finish_header):
+    def test_push_gap(self, mock_Gap, mock_finish_header,
+                      mock_finish_request):
         state = request.RequestParseState()
         state._sequence = mock.Mock()
-        state._request = 'request'
 
         state.push_gap('filename', 12.34)
 
         self.assertEqual(state._request, None)
+        self.assertFalse(mock_finish_request.called)
         self.assertFalse(mock_finish_header.called)
         mock_Gap.assert_called_once_with(12.34)
         state._sequence.push.assert_called_once_with('gap')
 
+    @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
     @mock.patch.object(request, 'Gap', return_value='gap')
-    def test_push_gap_finish_header(self, mock_Gap, mock_finish_header):
+    def test_push_gap_finishes(self, mock_Gap, mock_finish_header,
+                               mock_finish_request):
         state = request.RequestParseState()
         state._sequence = mock.Mock()
         state._header = 'header'
@@ -294,7 +277,7 @@ class TestRequestParseState(unittest2.TestCase):
 
         state.push_gap('filename', 12.34)
 
-        self.assertEqual(state._request, None)
+        mock_finish_request.assert_called_once_with('filename')
         mock_finish_header.assert_called_once_with('filename')
         mock_Gap.assert_called_once_with(12.34)
         state._sequence.push.assert_called_once_with('gap')
@@ -350,21 +333,24 @@ class TestRequestParseState(unittest2.TestCase):
 
         self.assertEqual(state.headers, dict(header='value'))
 
+    @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
-    def test_finish(self, mock_finish_header):
+    def test_finish(self, mock_finish_header, mock_finish_request):
         state = request.RequestParseState()
         state._sequence = 'sequence'
-        state._request = 'request'
 
         state.finish('filename')
 
+        self.assertFalse(mock_finish_request.called)
         self.assertFalse(mock_finish_header.called)
         self.assertEqual(state._sequence, None)
         self.assertEqual(state._request, None)
         self.assertEqual(state._header, None)
 
+    @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
-    def test_finish_finish_header(self, mock_finish_header):
+    def test_finish_finish_header(self, mock_finish_header,
+                                  mock_finish_request):
         state = request.RequestParseState()
         state._sequence = 'sequence'
         state._request = 'request'
@@ -372,6 +358,7 @@ class TestRequestParseState(unittest2.TestCase):
 
         state.finish('filename')
 
+        mock_finish_request.assert_called_once_with('filename')
         mock_finish_header.assert_called_once_with('filename')
         self.assertEqual(state._sequence, None)
         self.assertEqual(state._request, None)

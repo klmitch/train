@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from train import util
+
 
 class RequestParseException(Exception):
     """
@@ -38,40 +40,8 @@ class Sequence(object):
         """
 
         self.name = name
-        self.headers = dict(global_headers)
+        self.headers = util.StackedDict(global_headers)
         self.requests = []
-
-    def __getitem__(self, key):
-        """
-        Return the specified header.
-
-        :param key: The name of the header.
-
-        :returns: The value of the header.
-        """
-
-        return self.headers[key]
-
-    def __setitem__(self, key, value):
-        """
-        Set the specified header.
-
-        :param key: The name of the header.
-        :param value: The desired value of the header.
-        """
-
-        self.headers[key] = value
-
-    def __delitem__(self, key):
-        """
-        Delete the specified header.  Note that this only deletes
-        headers from the set stored in this ``Sequence``; it cannot
-        delete headers from the global scope.
-
-        :param key: The name of the header.
-        """
-
-        del self.headers[key]
 
     def push(self, req):
         """
@@ -103,39 +73,15 @@ class Request(object):
 
         self.method = method.upper()
         self.uri = uri
-        self.headers = dict(sequence.headers)
+        self.headers = util.StackedDict(sequence.headers)
 
-    def __getitem__(self, key):
+    def fix(self):
         """
-        Return the specified header.
-
-        :param key: The name of the header.
-
-        :returns: The value of the header.
+        Fixate the headers on the request.  This converts the headers
+        ``StackedDict`` object into a plain dictionary.
         """
 
-        return self.headers[key]
-
-    def __setitem__(self, key, value):
-        """
-        Set the specified header.
-
-        :param key: The name of the header.
-        :param value: The desired value of the header.
-        """
-
-        self.headers[key] = value
-
-    def __delitem__(self, key):
-        """
-        Delete the specified header.  Note that this only deletes
-        headers from the set stored in this ``Request``; it cannot
-        delete headers from the ``Sequence`` or the global scope.
-
-        :param key: The name of the header.
-        """
-
-        del self.headers[key]
+        self.headers = self.headers.copy()
 
 
 class Gap(object):
@@ -203,7 +149,7 @@ class RequestParseState(object):
         """
 
         # Base of the headers tree; this contains globally-set headers
-        self._headers = {}
+        self._headers = util.StackedDict()
 
         # Keep a dictionary of sequences being built
         self._sequences = {}
@@ -230,8 +176,9 @@ class RequestParseState(object):
         if self._header:
             self.finish_header(fname)
 
-        # Reset request state processing
-        self._request = None
+        # Apply partial request
+        if self._request:
+            self.finish_request(fname)
 
         # Determine which scope to go to
         if name:
@@ -261,11 +208,28 @@ class RequestParseState(object):
         if self._header:
             self.finish_header(fname)
 
+        # Apply partial request
+        if self._request:
+            self.finish_request(fname)
+
         # Set up the new request
         self._request = Request(self._sequence, method, uri)
 
         # Go ahead and add it to the sequence
         self._sequence.push(self._request)
+
+    def finish_request(self, fname):
+        """
+        Finish the processing of a request.
+
+        :param fname: The name of the file being parsed.
+        """
+
+        # Fixate the request headers
+        self._request.fix()
+
+        # Clear the partial request
+        self._request = None
 
     def push_gap(self, fname, delta):
         """
@@ -285,8 +249,9 @@ class RequestParseState(object):
         if self._header:
             self.finish_header(fname)
 
-        # Reset request state processing
-        self._request = None
+        # Apply partial request
+        if self._request:
+            self.finish_request(fname)
 
         # Push the gap onto the sequence
         self._sequence.push(Gap(delta))
@@ -348,6 +313,10 @@ class RequestParseState(object):
         # Apply partial headers
         if self._header:
             self.finish_header(fname)
+
+        # Apply partial request
+        if self._request:
+            self.finish_request(fname)
 
         # Reset all state; this allows the state object to be reused
         self._sequence = None
