@@ -445,6 +445,14 @@ def _parse_file(state, fname):
                                                 "while reading file %s" %
                                                 (line[1:], fname))
                 continue  # Pragma: nocover
+            elif line[0] == '-':
+                # We have a delete header request
+                state.delete_header(fname, line[1:].strip())
+                continue
+            elif line[0] == '!':
+                # We have a reset header request
+                state.reset_header(fname, line[1:].strip())
+                continue
 
             # OK, it's either a request or a header...
             for idx, char in enumerate(line):

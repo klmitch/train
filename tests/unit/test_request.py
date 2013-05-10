@@ -484,6 +484,10 @@ global-header: partial value here#ignored comment marker
 
 +12.34 # Trial gap
 
+-delete-header
+
+!reset-header
+
 get /some/uri#fragment # introduce a request
 """)
 
@@ -498,6 +502,8 @@ get /some/uri#fragment # introduce a request
             mock.call.extend_header('filename', 'continuation line'),
             mock.call.start_sequence('filename', 'sequence'),
             mock.call.push_gap('filename', 12.34),
+            mock.call.delete_header('filename', 'delete-header'),
+            mock.call.reset_header('filename', 'reset-header'),
             mock.call.start_request('filename', 'get', '/some/uri#fragment'),
             mock.call.finish('filename'),
         ])
