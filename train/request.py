@@ -83,6 +83,7 @@ class Sequence(object):
 
         self.requests.append(req)
 
+
 class Request(object):
     """
     Represent a request within a sequence.  This will contain the
