@@ -132,14 +132,6 @@ class TestPartialHeader(unittest2.TestCase):
 
         self.assertEqual(header.value, "this is a test")
 
-    def test_apply(self):
-        obj = {}
-        header = request.PartialHeader('x-random-header', "this is a test")
-
-        header.apply(obj)
-
-        self.assertEqual(obj, {'X_RANDOM_HEADER': "this is a test"})
-
 
 class TestRequestParseState(unittest2.TestCase):
     def test_init(self):
@@ -346,41 +338,17 @@ class TestRequestParseState(unittest2.TestCase):
 
         self.assertEqual(state._header, 'this is a test')
 
-    def test_finish_header_request(self):
+    @mock.patch.object(request.RequestParseState, 'headers', {})
+    def test_finish_header(self):
         header = mock.Mock()
+        header.name = 'header'
+        header.value = 'value'
         state = request.RequestParseState()
         state._header = header
-        state._request = 'request'
-        state._sequence = 'sequence'
-        state._headers = 'headers'
 
         state.finish_header('filename')
 
-        self.assertEqual(state._header, None)
-        header.apply.assert_called_once_with('request')
-
-    def test_finish_header_sequence(self):
-        header = mock.Mock()
-        state = request.RequestParseState()
-        state._header = header
-        state._sequence = 'sequence'
-        state._headers = 'headers'
-
-        state.finish_header('filename')
-
-        self.assertEqual(state._header, None)
-        header.apply.assert_called_once_with('sequence')
-
-    def test_finish_header_global(self):
-        header = mock.Mock()
-        state = request.RequestParseState()
-        state._header = header
-        state._headers = 'headers'
-
-        state.finish_header('filename')
-
-        self.assertEqual(state._header, None)
-        header.apply.assert_called_once_with('headers')
+        self.assertEqual(state.headers, dict(header='value'))
 
     @mock.patch.object(request.RequestParseState, 'finish_header')
     def test_finish(self, mock_finish_header):
@@ -414,6 +382,27 @@ class TestRequestParseState(unittest2.TestCase):
         state._sequences = dict(a=1, b=2, c=3)
 
         self.assertEqual(set(state.sequences), set([1, 2, 3]))
+
+    def test_headers_request(self):
+        state = request.RequestParseState()
+        state._request = mock.Mock(headers='request')
+        state._sequence = mock.Mock(headers='sequence')
+        state._headers = 'global'
+
+        self.assertEqual(state.headers, 'request')
+
+    def test_headers_sequence(self):
+        state = request.RequestParseState()
+        state._sequence = mock.Mock(headers='sequence')
+        state._headers = 'global'
+
+        self.assertEqual(state.headers, 'sequence')
+
+    def test_headers_global(self):
+        state = request.RequestParseState()
+        state._headers = 'global'
+
+        self.assertEqual(state.headers, 'global')
 
 
 class TestParseFile(unittest2.TestCase):

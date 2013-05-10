@@ -191,15 +191,6 @@ class PartialHeader(object):
 
         return self
 
-    def apply(self, obj):
-        """
-        Applies the header to the desired target object.
-
-        :param obj: The object in which to set the header.
-        """
-
-        obj[self.name] = self.value
-
 
 class RequestParseState(object):
     """
@@ -340,13 +331,8 @@ class RequestParseState(object):
         :param fname: The name of the file being parsed.
         """
 
-        # Figure out what to apply the header to
-        if self._request:
-            self._header.apply(self._request)
-        elif self._sequence:
-            self._header.apply(self._sequence)
-        else:
-            self._header.apply(self._headers)
+        # Apply the header to the headers object
+        self.headers[self._header.name] = self._header.value
 
         # Clear the partial header
         self._header = None
@@ -375,6 +361,18 @@ class RequestParseState(object):
         """
 
         return self._sequences.values()
+
+    @property
+    def headers(self):
+        """
+        Retrieve the headers currently being manipulated.
+        """
+
+        if self._request:
+            return self._request.headers
+        if self._sequence:
+            return self._sequence.headers
+        return self._headers
 
 
 def _parse_file(state, fname):
