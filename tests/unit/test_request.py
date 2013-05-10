@@ -397,6 +397,12 @@ class TestRequestParseState(unittest2.TestCase):
     @mock.patch.object(request.RequestParseState, 'finish_header')
     def test_finish(self, mock_finish_header, mock_finish_request):
         state = request.RequestParseState()
+        state._headers = mock.Mock()
+        state._sequences = {
+            'seq1': mock.Mock(headers=mock.Mock()),
+            'seq2': mock.Mock(headers=mock.Mock()),
+            'seq3': mock.Mock(headers=mock.Mock()),
+        }
         state._sequence = 'sequence'
 
         state.finish('filename')
@@ -407,11 +413,21 @@ class TestRequestParseState(unittest2.TestCase):
         self.assertEqual(state._request, None)
         self.assertEqual(state._header, None)
 
+        state._headers.reset.assert_called_once_with()
+        for seq in state._sequences.values():
+            seq.headers.reset.assert_called_once_with()
+
     @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')
     def test_finish_finish_header(self, mock_finish_header,
                                   mock_finish_request):
         state = request.RequestParseState()
+        state._headers = mock.Mock()
+        state._sequences = {
+            'seq1': mock.Mock(headers=mock.Mock()),
+            'seq2': mock.Mock(headers=mock.Mock()),
+            'seq3': mock.Mock(headers=mock.Mock()),
+        }
         state._sequence = 'sequence'
         state._request = 'request'
         state._header = 'header'
@@ -423,6 +439,10 @@ class TestRequestParseState(unittest2.TestCase):
         self.assertEqual(state._sequence, None)
         self.assertEqual(state._request, None)
         self.assertEqual(state._header, None)
+
+        state._headers.reset.assert_called_once_with()
+        for seq in state._sequences.values():
+            seq.headers.reset.assert_called_once_with()
 
     def test_sequences(self):
         state = request.RequestParseState()

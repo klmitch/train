@@ -370,6 +370,13 @@ class RequestParseState(object):
         self._request = None
         self._header = None
 
+        # Reset global headers for the next file
+        self._headers.reset()
+
+        # Hit the headers on all the sequences
+        for seq in self._sequences.values():
+            seq.headers.reset()
+
     @property
     def sequences(self):
         """
