@@ -443,6 +443,10 @@ def _parse_file(state, fname):
                     state.start_header(fname, line[:idx],
                                        line[idx + 1:].strip())
                     break
+            else:
+                raise RequestParseException("Unable to parse line %r "
+                                            "while reading file %s" %
+                                            (line, fname))
 
     # Finished processing this file
     state.finish(fname)
