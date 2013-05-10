@@ -115,3 +115,27 @@ class TestGap(unittest2.TestCase):
         gap = request.Gap(18.23)
 
         self.assertEqual(gap.delta, 18.23)
+
+
+class TestPartialHeader(unittest2.TestCase):
+    def test_init(self):
+        header = request.PartialHeader('x-random_header',
+                                       "this   is\t\ta\n\rtest")
+
+        self.assertEqual(header.name, 'X_RANDOM_HEADER')
+        self.assertEqual(header.value, "this is a test")
+
+    def test_iadd(self):
+        header = request.PartialHeader('x-random-header', "this")
+
+        header += "is   a\t\r\n  test"
+
+        self.assertEqual(header.value, "this is a test")
+
+    def test_apply(self):
+        obj = {}
+        header = request.PartialHeader('x-random-header', "this is a test")
+
+        header.apply(obj)
+
+        self.assertEqual(obj, {'X_RANDOM_HEADER': "this is a test"})
