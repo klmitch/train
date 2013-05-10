@@ -430,7 +430,7 @@ def _parse_file(state, fname):
                     raise RequestParseException("Invalid gap value %r "
                                                 "while reading file %s" %
                                                 (line[1:], fname))
-                continue
+                continue  # Pragma: nocover
 
             # OK, it's either a request or a header...
             for idx, char in enumerate(line):

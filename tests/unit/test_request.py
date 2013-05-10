@@ -414,3 +414,100 @@ class TestRequestParseState(unittest2.TestCase):
         state._sequences = dict(a=1, b=2, c=3)
 
         self.assertEqual(set(state.sequences), set([1, 2, 3]))
+
+
+class TestParseFile(unittest2.TestCase):
+    def prep_data(self, mock_open, data):
+        # A generator function to return lines from data
+        def yield_lines():
+            start = 0
+            for idx, char in enumerate(data):
+                if char == '\n':
+                    yield data[start:idx + 1]
+                    start = idx + 1
+
+            if start < len(data):
+                yield data[start:]
+
+        # So it works as a context manager
+        mock_open.return_value.__enter__.return_value = mock_open.return_value
+        mock_open.return_value.__iter__.return_value = yield_lines()
+
+    @mock.patch('__builtin__.open')
+    def test_parse_file(self, mock_open):
+        state = mock.Mock()
+        self.prep_data(mock_open, """
+# Comment in the left column (ignored)
+
+   # Inline comment, header continuation (ignored)
+
+global-header: partial value here#ignored comment marker
+   continuation line # inline comment
+
+[ sequence ] # sequence start
+
++12.34 # Trial gap
+
+get /some/uri#fragment # introduce a request
+""")
+
+        request._parse_file(state, 'filename')
+
+        mock_open.assert_called_once_with('filename')
+
+        state.assert_has_calls([
+            mock.call.start_header(
+                'filename', 'global-header',
+                'partial value here#ignored comment marker'),
+            mock.call.extend_header('filename', 'continuation line'),
+            mock.call.start_sequence('filename', 'sequence'),
+            mock.call.push_gap('filename', 12.34),
+            mock.call.start_request('filename', 'get', '/some/uri#fragment'),
+            mock.call.finish('filename'),
+        ])
+
+    @mock.patch('__builtin__.open')
+    def test_parse_file_bad_sequence_header(self, mock_open):
+        state = mock.Mock()
+        self.prep_data(mock_open, """
+[bad_sequence
+""")
+
+        self.assertRaises(request.RequestParseException, request._parse_file,
+                          state, 'filename')
+
+    @mock.patch('__builtin__.open')
+    def test_parse_file_bad_gap(self, mock_open):
+        state = mock.Mock()
+        self.prep_data(mock_open, """
++12.three
+""")
+
+        self.assertRaises(request.RequestParseException, request._parse_file,
+                          state, 'filename')
+
+    @mock.patch('__builtin__.open')
+    def test_parse_file_bad_line(self, mock_open):
+        state = mock.Mock()
+        self.prep_data(mock_open, """
+something
+""")
+
+        self.assertRaises(request.RequestParseException, request._parse_file,
+                          state, 'filename')
+
+
+class TestParseFiles(unittest2.TestCase):
+    @mock.patch.object(request, 'RequestParseState',
+                       return_value=mock.Mock(sequences='sequences'))
+    @mock.patch.object(request, '_parse_file')
+    def test_parse_files(self, mock_parse_file, mock_RequestParseState):
+        result = request.parse_files(['file1', 'file2', 'file3'])
+
+        self.assertEqual(result, 'sequences')
+        mock_RequestParseState.assert_called_once_with()
+        mock_parse_file.assert_has_calls([
+            mock.call(mock_RequestParseState.return_value, 'file1'),
+            mock.call(mock_RequestParseState.return_value, 'file2'),
+            mock.call(mock_RequestParseState.return_value, 'file3'),
+        ])
