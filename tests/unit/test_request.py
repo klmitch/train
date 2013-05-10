@@ -71,6 +71,11 @@ class TestGap(unittest2.TestCase):
 
 
 class TestPartialHeader(unittest2.TestCase):
+    def test_canon_name(self):
+        result = request.PartialHeader.canon_name('x-random_header')
+
+        self.assertEqual(result, 'X_RANDOM_HEADER')
+
     def test_init(self):
         header = request.PartialHeader('x-random_header',
                                        "this   is\t\ta\n\rtest")
@@ -332,6 +337,61 @@ class TestRequestParseState(unittest2.TestCase):
         state.finish_header('filename')
 
         self.assertEqual(state.headers, dict(header='value'))
+
+    @mock.patch.object(request.RequestParseState, 'headers',
+                       dict(HEADER1='value1', HEADER2='value2'))
+    @mock.patch.object(request.RequestParseState, 'finish_header')
+    def test_delete_header(self, mock_finish_header):
+        state = request.RequestParseState()
+
+        state.delete_header('filename', 'header1')
+
+        self.assertFalse(mock_finish_header.called)
+        self.assertEqual(state.headers, dict(HEADER2='value2'))
+
+    @mock.patch.object(request.RequestParseState, 'headers',
+                       dict(HEADER2='value2'))
+    @mock.patch.object(request.RequestParseState, 'finish_header')
+    def test_delete_header_unset(self, mock_finish_header):
+        state = request.RequestParseState()
+
+        state.delete_header('filename', 'header1')
+
+        self.assertFalse(mock_finish_header.called)
+        self.assertEqual(state.headers, dict(HEADER2='value2'))
+
+    @mock.patch.object(request.RequestParseState, 'headers',
+                       dict(HEADER1='value1', HEADER2='value2'))
+    @mock.patch.object(request.RequestParseState, 'finish_header')
+    def test_delete_header_finish_header(self, mock_finish_header):
+        state = request.RequestParseState()
+        state._header = 'old_header'
+
+        state.delete_header('filename', 'header1')
+
+        mock_finish_header.assert_called_once_with('filename')
+        self.assertEqual(state.headers, dict(HEADER2='value2'))
+
+    @mock.patch.object(request.RequestParseState, 'headers', mock.Mock())
+    @mock.patch.object(request.RequestParseState, 'finish_header')
+    def test_reset_header(self, mock_finish_header):
+        state = request.RequestParseState()
+
+        state.reset_header('filename', 'header1')
+
+        self.assertFalse(mock_finish_header.called)
+        state.headers.reset.assert_called_once_with('HEADER1')
+
+    @mock.patch.object(request.RequestParseState, 'headers', mock.Mock())
+    @mock.patch.object(request.RequestParseState, 'finish_header')
+    def test_reset_header_finish_header(self, mock_finish_header):
+        state = request.RequestParseState()
+        state._header = 'old_header'
+
+        state.reset_header('filename', 'header1')
+
+        mock_finish_header.assert_called_once_with('filename')
+        state.headers.reset.assert_called_once_with('HEADER1')
 
     @mock.patch.object(request.RequestParseState, 'finish_request')
     @mock.patch.object(request.RequestParseState, 'finish_header')

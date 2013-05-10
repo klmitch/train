@@ -106,6 +106,19 @@ class PartialHeader(object):
     allow for headers that are split across multiple lines.
     """
 
+    @staticmethod
+    def canon_name(name):
+        """
+        Canonicalize a header name.
+
+        :param name: The name to canonicalize.
+
+        :returns: The name, converted to uppercase and with all dashes
+                  converted to underscores.
+        """
+
+        return name.upper().replace('-', '_')
+
     def __init__(self, name, value):
         """
         Initialize a ``PartialHeader`` instance.
@@ -117,7 +130,7 @@ class PartialHeader(object):
         # Canonicalize the header name to uppercase with dashes
         # replaced by underscores; this makes creating the WSGI
         # environment later a little easier
-        self.name = name.upper().replace('-', '_')
+        self.name = self.canon_name(name)
 
         # Canonicalize the whitespace in the value
         self.value = ' '.join(value.split())
@@ -301,6 +314,40 @@ class RequestParseState(object):
 
         # Clear the partial header
         self._header = None
+
+    def delete_header(self, fname, name):
+        """
+        Delete a header.
+
+        :param fname: The name of the file being parsed.
+        :param name: The name of the header to delete.
+        """
+
+        # Apply partial headers
+        if self._header:
+            self.finish_header(fname)
+
+        # Delete the header
+        try:
+            del self.headers[PartialHeader.canon_name(name)]
+        except KeyError:
+            pass
+
+    def reset_header(self, fname, name):
+        """
+        Reset a header.  This restores the header to what it was in
+        the parent environment.
+
+        :param fname: The name of the file being parsed.
+        :param name: The name of the header to reset.
+        """
+
+        # Apply partial headers
+        if self._header:
+            self.finish_header(fname)
+
+        # Reset the header
+        self.headers.reset(PartialHeader.canon_name(name))
 
     def finish(self, fname):
         """
