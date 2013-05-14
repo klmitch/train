@@ -13,6 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import StringIO
+import sys
+import urllib
+
 from train import util
 
 
@@ -82,6 +86,57 @@ class Request(object):
         """
 
         self.headers = self.headers.copy()
+
+    def synthesize(self):
+        """
+        Synthesize the WSGI environment dictionary, based on the
+        request.
+
+        :returns: A dictionary containing the WSGI dictionary.
+        """
+
+        path_info = self.uri.split('?', 1)
+
+        environ = {
+            'wsgi.input': StringIO.StringIO(''),
+            'wsgi.errors': sys.stderr,
+            'wsgi.version': (1, 0),
+            'wsgi.multithread': True,
+            'wsgi.multiprocess': False,
+            'wsgi.run_once': False,
+            'wsgi.url_scheme': 'http',
+            'REQUEST_METHOD': self.method,
+            'SCRIPT_NAME': '',
+            'RAW_PATH_INFO': path_info[0],
+            'PATH_INFO': urllib.unquote(path_info[0]),
+            'SERVER_PROTOCOL': 'HTTP/1.0',
+            'SERVER_NAME': 'localhost',
+            'SERVER_PORT': '80',
+            'REMOTE_ADDR': 'localhost',
+            'REMOTE_PORT': '80',
+            'GATEWAY_INTERFACE': 'CGI/1.1',
+        }
+
+        # Add the query string
+        if len(path_info) > 1:
+            environ['QUERY_STRING'] = path_info[1]
+
+        # Determine the content type
+        if 'CONTENT_TYPE' in self.headers:
+            ctype = self.headers['CONTENT_TYPE'].partition(';')[0].strip()
+            environ['CONTENT_TYPE'] = ctype
+        else:
+            environ['CONTENT_TYPE'] = 'text/plain'
+
+        # Determine the content length
+        if 'CONTENT_LENGTH' in self.headers:
+            environ['CONTENT_LENGTH'] = self.headers['CONTENT_LENGTH']
+
+        # Add all the headers
+        for name, value in self.headers.items():
+            environ['HTTP_' + name] = value
+
+        return environ
 
 
 class Gap(object):
