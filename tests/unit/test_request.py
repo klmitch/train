@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import sys
+
 import mock
 import unittest2
 
@@ -41,6 +43,18 @@ class TestSequence(unittest2.TestCase):
 
 
 class TestRequest(unittest2.TestCase):
+    def partial_dict(self, expected, not_present, actual):
+        for var in not_present:
+            if var in actual:
+                self.fail("Variable %r unexpectedly present" % var)
+
+        for var, value in expected.items():
+            if var not in actual:
+                self.fail("Expected variable %r not present" % var)
+            elif value != actual[var]:
+                self.fail("Variable %r: expected value %r, actual %r" %
+                          (var, value, actual[var]))
+
     def test_init(self):
         headers = dict(a=1, b=2, c=3)
         req = request.Request(mock.Mock(headers=headers), 'get', 'uri')
@@ -61,6 +75,78 @@ class TestRequest(unittest2.TestCase):
 
         self.assertIsInstance(req.headers, dict)
         self.assertEqual(req.headers, dict(a=1, b=2, c=3, d=4))
+
+    def test_synthesize_basic(self):
+        headers = dict(A='1', B='2', C='3')
+        req = request.Request(mock.Mock(headers=headers), 'get', 'uri%20test')
+        req.fix()
+
+        environ = req.synthesize()
+
+        expected = {
+            'wsgi.errors': sys.stderr,
+            'wsgi.version': (1, 0),
+            'wsgi.multithread': True,
+            'wsgi.multiprocess': False,
+            'wsgi.run_once': False,
+            'wsgi.url_scheme': 'http',
+            'REQUEST_METHOD': 'GET',
+            'SCRIPT_NAME': '',
+            'RAW_PATH_INFO': 'uri%20test',
+            'PATH_INFO': 'uri test',
+            'SERVER_PROTOCOL': 'HTTP/1.0',
+            'SERVER_NAME': 'localhost',
+            'SERVER_PORT': '80',
+            'REMOTE_ADDR': 'localhost',
+            'REMOTE_PORT': '80',
+            'GATEWAY_INTERFACE': 'CGI/1.1',
+            'CONTENT_TYPE': 'text/plain',
+            'HTTP_A': '1',
+            'HTTP_B': '2',
+            'HTTP_C': '3',
+        }
+        not_present = ['QUERY_STRING', 'CONTENT_LENGTH']
+        self.partial_dict(expected, not_present, environ)
+        self.assertEqual(environ['wsgi.input'].read(), '')
+
+    def test_synthesize_extras(self):
+        headers = dict(A='1', B='2', C='3',
+                       CONTENT_TYPE='text/html ;encoding=utf-8',
+                       CONTENT_LENGTH='1024')
+        req = request.Request(mock.Mock(headers=headers), 'get',
+                              'uri%20test?a=1&b=2&c=3')
+        req.fix()
+
+        environ = req.synthesize()
+
+        expected = {
+            'wsgi.errors': sys.stderr,
+            'wsgi.version': (1, 0),
+            'wsgi.multithread': True,
+            'wsgi.multiprocess': False,
+            'wsgi.run_once': False,
+            'wsgi.url_scheme': 'http',
+            'REQUEST_METHOD': 'GET',
+            'SCRIPT_NAME': '',
+            'RAW_PATH_INFO': 'uri%20test',
+            'PATH_INFO': 'uri test',
+            'SERVER_PROTOCOL': 'HTTP/1.0',
+            'SERVER_NAME': 'localhost',
+            'SERVER_PORT': '80',
+            'REMOTE_ADDR': 'localhost',
+            'REMOTE_PORT': '80',
+            'GATEWAY_INTERFACE': 'CGI/1.1',
+            'QUERY_STRING': 'a=1&b=2&c=3',
+            'CONTENT_TYPE': 'text/html',
+            'CONTENT_LENGTH': '1024',
+            'HTTP_A': '1',
+            'HTTP_B': '2',
+            'HTTP_C': '3',
+            'HTTP_CONTENT_TYPE': 'text/html ;encoding=utf-8',
+            'HTTP_CONTENT_LENGTH': '1024',
+        }
+        self.partial_dict(expected, [], environ)
+        self.assertEqual(environ['wsgi.input'].read(), '')
 
 
 class TestGap(unittest2.TestCase):
