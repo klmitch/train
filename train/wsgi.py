@@ -89,7 +89,8 @@ class Response(object):
         :param data: Data to be included in the response body.
         """
 
-        self.body += data
+        if data:
+            self.body += str(data)
 
 
 class TrainServer(object):
