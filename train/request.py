@@ -15,6 +15,7 @@
 
 import StringIO
 import sys
+import time
 import urllib
 
 from train import util
@@ -56,6 +57,17 @@ class Sequence(object):
         """
 
         self.requests.append(req)
+
+    def queue_request(self, queue):
+        """
+        Places all the requests in the sequence onto the designated
+        queue.
+
+        :param queue: A queue object.
+        """
+
+        for req in self.requests:
+            req.queue_request(queue)
 
 
 class Request(object):
@@ -138,6 +150,15 @@ class Request(object):
 
         return environ
 
+    def queue_request(self, queue):
+        """
+        Places the request onto the designated queue.
+
+        :param queue: A queue object.
+        """
+
+        queue.put(self.synthesize())
+
 
 class Gap(object):
     """
@@ -153,6 +174,16 @@ class Gap(object):
         """
 
         self.delta = delta
+
+    def queue_request(self, queue):
+        """
+        Performs a sleep to simulate a time gap in a sequence of
+        requests.
+
+        :param queue: A queue object.
+        """
+
+        time.sleep(self.delta)
 
 
 class PartialHeader(object):

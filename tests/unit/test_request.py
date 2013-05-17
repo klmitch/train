@@ -41,6 +41,20 @@ class TestSequence(unittest2.TestCase):
 
         self.assertEqual(seq.requests, ['request1', 'gap', 'request2'])
 
+    def test_queue_request(self):
+        seq = request.Sequence('test_seq', {})
+        requests = [
+            mock.Mock(),
+            mock.Mock(),
+            mock.Mock(),
+        ]
+        seq.requests = requests
+
+        seq.queue_request('queue')
+
+        for req in requests:
+            req.queue_request.assert_called_once_with('queue')
+
 
 class TestRequest(unittest2.TestCase):
     def partial_dict(self, expected, not_present, actual):
@@ -148,12 +162,30 @@ class TestRequest(unittest2.TestCase):
         self.partial_dict(expected, [], environ)
         self.assertEqual(environ['wsgi.input'].read(), '')
 
+    @mock.patch.object(request.Request, 'synthesize', return_value='environ')
+    def test_queue_request(self, mock_synthesize):
+        req = request.Request(mock.Mock(headers={}), 'get', 'uri_test')
+        queue = mock.Mock()
+
+        req.queue_request(queue)
+
+        mock_synthesize.assert_called_once_with()
+        queue.put.assert_called_once_with('environ')
+
 
 class TestGap(unittest2.TestCase):
     def test_init(self):
         gap = request.Gap(18.23)
 
         self.assertEqual(gap.delta, 18.23)
+
+    @mock.patch('time.sleep')
+    def test_queue_request(self, mock_sleep):
+        gap = request.Gap(18.23)
+
+        gap.queue_request('queue')
+
+        mock_sleep.assert_called_once_with(18.23)
 
 
 class TestPartialHeader(unittest2.TestCase):
