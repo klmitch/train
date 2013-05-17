@@ -56,7 +56,7 @@ class Response(object):
         result = application(environ, self.start_response)
         for data in result:
             if data:
-                self.body += data
+                self.body += str(data)
 
     def start_response(self, status, response_headers, exc_info=None):
         """
