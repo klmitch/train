@@ -261,6 +261,9 @@ class Launcher(object):
         # installing the signal handlers
         self._install_handler(self._handle_signal)
 
+        # Need our process ID
+        pid = os.getpid()
+
         # Now call the starter
         status = 0
         try:
