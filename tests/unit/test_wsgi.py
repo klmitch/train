@@ -112,3 +112,85 @@ class TestTrainServer(unittest2.TestCase):
         start_response.assert_called_once_with(
             '200 OK', [('x-train-server', 'completed')])
         mock_pformat.assert_called_once_with('environ')
+
+    @mock.patch('os.getpid', return_value=1234)
+    @mock.patch.object(wsgi, 'LOG')
+    @mock.patch.object(wsgi.TrainServer, '__call__', return_value=mock.Mock(
+        status='200 OK',
+        headers=dict(X_TEST='test header'),
+        body='response body here',
+    ))
+    def test_start(self, mock_call, mock_LOG, mock_getpid):
+        filter = mock.Mock(return_value='filter')
+        ts = wsgi.TrainServer(filter)
+        environs = [dict(request='0'), dict(request='1'), TestException]
+        queue = mock.Mock(**{'get.side_effect': environs})
+
+        self.assertRaises(TestException, ts.start, queue)
+
+        queue.assert_has_calls([
+            mock.call.get(),
+            mock.call.get(),
+            mock.call.get(),
+        ])
+        mock_LOG.assert_has_calls([
+            mock.call.notice("1234: Processing request {'request': '0'}"),
+            mock.call.notice("1234: Response code '200 OK'; headers "
+                             "{'X_TEST': 'test header'}; body "
+                             "'response body here'"),
+            mock.call.notice("1234: Processing request {'request': '1'}"),
+            mock.call.notice("1234: Response code '200 OK'; headers "
+                             "{'X_TEST': 'test header'}; body "
+                             "'response body here'"),
+        ])
+        mock_call.assert_has_calls([
+            mock.call(dict(request='0')),
+            mock.call(dict(request='1')),
+        ])
+
+    @mock.patch('turnstile.middleware.turnstile_filter',
+                return_value=mock.Mock(return_value='filter'))
+    def test_from_confitems(self, mock_turnstile_filter):
+        items = [('item1', 'value 1'), ('item2', 'value 2')]
+
+        result = wsgi.TrainServer.from_confitems(items)
+
+        self.assertEqual(result.application, 'filter')
+        mock_turnstile_filter.assert_called_once_with(
+            {}, item1='value 1', item2='value 2')
+        mock_turnstile_filter.return_value.assert_called_once_with(
+            result.fake_app)
+
+
+class TestStartWorkers(unittest2.TestCase):
+    @mock.patch.object(wsgi.TrainServer, 'from_confitems',
+                       return_value=mock.Mock(start='starter'))
+    @mock.patch('train.util.Launcher', return_value=mock.Mock(**{
+        'start.return_value': 'worker_pid',
+    }))
+    def test_one_worker(self, mock_Launcher, mock_from_confitems):
+        result = wsgi.start_workers('queue', 'items')
+
+        self.assertEqual(result, ['worker_pid'])
+        mock_from_confitems.assert_called_once_with('items')
+        mock_Launcher.assert_called_once_with('starter', 'queue')
+        mock_Launcher.return_value.start.assert_called_once_with()
+
+    @mock.patch.object(wsgi.TrainServer, 'from_confitems',
+                       return_value=mock.Mock(start='starter'))
+    @mock.patch('train.util.Launcher', return_value=mock.Mock(**{
+        'start.return_value': 'worker_pid',
+    }))
+    def test_five_workers(self, mock_Launcher, mock_from_confitems):
+        result = wsgi.start_workers('queue', 'items', 5)
+
+        self.assertEqual(result, ['worker_pid'] * 5)
+        mock_from_confitems.assert_called_once_with('items')
+        mock_Launcher.assert_called_once_with('starter', 'queue')
+        mock_Launcher.return_value.start.assert_has_calls([
+            mock.call(),
+            mock.call(),
+            mock.call(),
+            mock.call(),
+            mock.call(),
+        ])
