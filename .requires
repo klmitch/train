@@ -1,3 +1,4 @@
+cli_tools
 eventlet
 setuptools
 turnstile>=0.7.0b1
