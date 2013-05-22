@@ -73,6 +73,10 @@ def train(config, requests=None, workers=1):
     except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
         pass
 
+    # Demand we have some requests files, too
+    if not requests:
+        raise Exception("No requests to feed through Turnstile")
+
     # Now, we need the sequences
     sequences = request.parse_files(requests)
 
