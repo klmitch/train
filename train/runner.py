@@ -14,9 +14,12 @@
 #    under the License.
 
 import ConfigParser
+import logging
+import logging.config
 import multiprocessing
 import os
 import signal
+import sys
 import time
 
 import cli_tools
@@ -38,13 +41,18 @@ from train import wsgi
                     type=int,
                     help="Number of workers to use.  Default is drawn from "
                     "the configuration file, or 1 if none is provided.")
-def train(config, requests=None, workers=1):
+@cli_tools.argument("--log-config", "-l",
+                    action="store",
+                    help="Name of a logging configuration.  Default is drawn "
+                    "from the configuration file, if one is provided.")
+def train(config, requests=None, workers=1, log_config=None):
     """
     Run the Train benchmark tool.
 
     :param config: The name of the configuration file to read.
     :param requests: A list of one or more request files to read.
     :param workers: The number of workers to use.
+    :param log_config: The name of a logging configuration file.
     """
 
     # Read in the configuration
@@ -54,6 +62,29 @@ def train(config, requests=None, workers=1):
     # We must have a Turnstile section
     if not conf.has_section('turnstile'):
         raise Exception("No Turnstile configuration available")
+
+    # Which log configuration do we use?
+    if not log_config:
+        # Try to get it from the configuration
+        try:
+            log_config = conf.get('train', 'log_config')
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            pass
+
+    # Try to configure from a file, if one is specified
+    if log_config:
+        try:
+            # Try to read configuration from a file
+            logging.config.fileConfig(log_config)
+        except Exception as exc:
+            print >>sys.stderr, ("Warning: Failed to read logging "
+                                 "configuration from file %r: %s" %
+                                 (log_config, exc))
+            log_config = None
+
+    # OK, last-ditch logging configuration
+    if not log_config:
+        logging.basicConfig()
 
     # Determine the number of workers to employ
     if not workers:
