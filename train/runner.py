@@ -56,11 +56,12 @@ def train(config, requests=None, workers=1):
         raise Exception("No Turnstile configuration available")
 
     # Determine the number of workers to employ
-    if workers is None:
+    if not workers:
         # Try to get it from the configuration
         try:
             workers = int(conf.get('train', 'workers'))
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+        except (ValueError, ConfigParser.NoSectionError,
+                ConfigParser.NoOptionError):
             # Default to 1
             workers = 1
 
