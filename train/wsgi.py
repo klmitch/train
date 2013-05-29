@@ -168,7 +168,7 @@ class TrainServer(object):
             response = self(environ)
 
             # Log the response
-            LOG.info("%d: Response code %r; headers %s; body %r" %
+            LOG.info("%d: Response code %r; headers %s; body:\n%s" %
                      (pid, response.status,
                       pprint.pformat(response.headers), response.body))
 
