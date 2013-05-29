@@ -59,7 +59,7 @@ def train(config, requests=None, workers=1, log_config=None):
     # If we're using nova_limits, that relies on _ being declared,
     # which is presumably done by nova-api.  We need to dummy it out
     # so that this works...
-    __builtin__._ = lambda x: x
+    __builtin__._ = lambda x: x  # Pragma: nocover
 
     # Read in the configuration
     conf = ConfigParser.SafeConfigParser()
