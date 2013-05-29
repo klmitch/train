@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import __builtin__
 import ConfigParser
 import logging
 import logging.config
@@ -54,6 +55,11 @@ def train(config, requests=None, workers=1, log_config=None):
     :param workers: The number of workers to use.
     :param log_config: The name of a logging configuration file.
     """
+
+    # If we're using nova_limits, that relies on _ being declared,
+    # which is presumably done by nova-api.  We need to dummy it out
+    # so that this works...
+    __builtin__._ = lambda x: x
 
     # Read in the configuration
     conf = ConfigParser.SafeConfigParser()
