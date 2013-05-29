@@ -161,7 +161,7 @@ class TrainServer(object):
             environ = queue.get()
 
             # Log the request
-            LOG.info("%d: Processing request %s" %
+            LOG.info("%d: Processing request:\n%s" %
                      (pid, pprint.pformat(environ)))
 
             # Process the request
