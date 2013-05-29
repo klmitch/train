@@ -164,13 +164,18 @@ class TrainServer(object):
             LOG.info("%d: Processing request:\n%s" %
                      (pid, pprint.pformat(environ)))
 
-            # Process the request
-            response = self(environ)
+            try:
+                # Process the request
+                response = self(environ)
 
-            # Log the response
-            LOG.info("%d: Response code %r; headers %s; body:\n%s" %
-                     (pid, response.status,
-                      pprint.pformat(response.headers), response.body))
+                # Log the response
+                LOG.info("%d: Response code %r; headers %s; body:\n%s" %
+                         (pid, response.status,
+                          pprint.pformat(response.headers), response.body))
+            except Exception:
+                # Well, that didn't work out so well, did it?
+                LOG.exception("%d: Exception while processing request" %
+                              pid)
 
     @classmethod
     def from_confitems(cls, items):
