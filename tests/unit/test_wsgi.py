@@ -134,14 +134,14 @@ class TestTrainServer(unittest2.TestCase):
             mock.call.get(),
         ])
         mock_LOG.assert_has_calls([
-            mock.call.notice("1234: Processing request {'request': '0'}"),
-            mock.call.notice("1234: Response code '200 OK'; headers "
-                             "{'X_TEST': 'test header'}; body "
-                             "'response body here'"),
-            mock.call.notice("1234: Processing request {'request': '1'}"),
-            mock.call.notice("1234: Response code '200 OK'; headers "
-                             "{'X_TEST': 'test header'}; body "
-                             "'response body here'"),
+            mock.call.info("1234: Processing request {'request': '0'}"),
+            mock.call.info("1234: Response code '200 OK'; headers "
+                           "{'X_TEST': 'test header'}; body "
+                           "'response body here'"),
+            mock.call.info("1234: Processing request {'request': '1'}"),
+            mock.call.info("1234: Response code '200 OK'; headers "
+                           "{'X_TEST': 'test header'}; body "
+                           "'response body here'"),
         ])
         mock_call.assert_has_calls([
             mock.call(dict(request='0')),

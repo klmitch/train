@@ -161,16 +161,16 @@ class TrainServer(object):
             environ = queue.get()
 
             # Log the request
-            LOG.notice("%d: Processing request %s" %
-                       (pid, pprint.pformat(environ)))
+            LOG.info("%d: Processing request %s" %
+                     (pid, pprint.pformat(environ)))
 
             # Process the request
             response = self(environ)
 
             # Log the response
-            LOG.notice("%d: Response code %r; headers %s; body %r" %
-                       (pid, response.status,
-                        pprint.pformat(response.headers), response.body))
+            LOG.info("%d: Response code %r; headers %s; body %r" %
+                     (pid, response.status,
+                      pprint.pformat(response.headers), response.body))
 
     @classmethod
     def from_confitems(cls, items):
