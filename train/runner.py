@@ -32,7 +32,7 @@ from train import wsgi
                     action="store",
                     help="Configuration for Train (and Turnstile).")
 @cli_tools.argument("requests",
-                    action="append",
+                    action="store",
                     nargs='*',
                     help="Files describing the requests to feed through "
                     "Turnstile.")
