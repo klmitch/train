@@ -25,9 +25,6 @@ import time
 
 import cli_tools
 
-from train import request
-from train import wsgi
-
 
 @cli_tools.argument("config",
                     action="store",
@@ -91,6 +88,13 @@ def train(config, requests=None, workers=1, log_config=None):
     # OK, last-ditch logging configuration
     if not log_config:
         logging.basicConfig()
+
+    # Now that logging has been configured, we can import other train
+    # modules; this has to wait until now, because each starts off
+    # with a "LOG = logging.getLogger(__name__)", and that logger will
+    # not reflect the configuration that was set up above
+    from train import request
+    from train import wsgi
 
     # Determine the number of workers to employ
     if not workers:
