@@ -139,12 +139,24 @@ def train(config, requests=None, workers=1, log_config=None):
     for proc in procs:
         proc.join()
 
+    # Ask all the servers to exit, nicely
+    for server in servers:
+        queue.put('STOP')
+
     # The sequence processes will not actually exit until all items
     # fed by them into the queue have been pulled off.  Thus, the
     # queue should be empty...but let's be sure
     while not queue.empty():
         time.sleep(1)
 
-    # OK, now let's kill all the turnstile drivers
+    # Now let's give the processes a little time to finish doing their
+    # thing...
+    time.sleep(1)
+
+    # OK, now make sure *all* the drivers exit
     for server in servers:
-        os.kill(server, signal.SIGTERM)
+        try:
+            os.kill(server, signal.SIGTERM)
+        except OSError:
+            # That server's already stopped
+            pass

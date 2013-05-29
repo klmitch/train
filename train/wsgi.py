@@ -160,6 +160,10 @@ class TrainServer(object):
         while True:
             environ = queue.get()
 
+            # See if we've been commanded to stop
+            if environ == 'STOP':
+                return
+
             # Log the request
             LOG.info("%d: Processing request:\n%s" %
                      (pid, pprint.pformat(environ)))
